@@ -92,10 +92,10 @@ class Bonus(models.Model):
         # - have its related labor service tasks done (related SOL will be
         #   marked as delivered, so it should be covered by previous point)
         if any([move_state not in ('paid', 'reversed') for move_state in order.invoice_ids.mapped('payment_state')]):
-            # Not all invoices are fully paid or reversed
+            logger.info("Not all invoices are fully paid or reversed (SO %s %s).", order.id, order.date_order)
             return
         if any(line for line in order.order_line if line.product_uom_qty != line.qty_invoiced):
-            # Not all products have been invoiced
+            logger.info("Not all products have been invoiced (SO %s %s).", order.id, order.date_order)
             return
 
         precision = self.env['decimal.precision'].precision_get('Product Unit of Measure')
@@ -104,7 +104,7 @@ class Bonus(models.Model):
             not (line.is_downpayment or line.display_type or (line.product_id.type == 'service' and line.product_id.service_tracking == 'no'))
             and float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0
         ):
-            # Not all deliverable products have been delivered
+            logger.info("Not all deliverable products have been delivered (SO %s %s).", order.id, order.date_order)
             return
 
         involved_employees = self.env['hr.employee']
@@ -133,7 +133,7 @@ class Bonus(models.Model):
             reward_to_distribute = (labor_price_subtotal * labor_order_line.product_id.get_bonus_rate()) / 100
 
             if not task_total_hours or not reward_to_distribute:
-                # There might be no timesheet encoded, or 0% set on product AND
+                logger.info("# There might be no timesheet encoded on SO %s, or 0% set on product AND company rate).", order.id)
                 # company rate
                 continue
 
@@ -157,7 +157,7 @@ class Bonus(models.Model):
                     continue
 
                 if timesheet.bonuses_ids:
-                    # This timesheet is already linked to a bonus
+                    logger.info("This timesheet is already linked to a bonus")
                     continue
 
                 # Create bonus
