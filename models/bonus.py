@@ -137,7 +137,7 @@ class Bonus(models.Model):
             return
 
         #si des taches ne sont pas finies
-        if any(line for line in order.order_line if line.task_id.stage_id.name == "Done"):
+        if any(line for line in order.order_line if line.product_id.service_tracking == 'task_global_project' and line.task_id.stage_id.name != "Done"):
             order.bonus_state = "not_finished"
             logger.info("Not all tasks finished")
             return
@@ -208,6 +208,7 @@ class Bonus(models.Model):
                     'amount': bonus_amount,
                     'order_id': timesheet.order_id.id,
                 })
+                order.bonus_state = "finished"
                 bonus.add_bonus_on_vendor_bill()
                 involved_employees |= timesheet.employee_id
 

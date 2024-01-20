@@ -20,7 +20,8 @@ class SaleOrder(models.Model):
         ('not_all_services_given', 'Services not rendered'),
         ('no_timesheet', 'No Timesheet'),
         ('no_transport_allowed', 'No Transport'),
-        ('not_finished', 'Taches pas finies' )
+        ('not_finished', 'Taches pas finies'),
+        ('finished', 'Terminé bonsoir'),
         ], 
         default='not_invoiced',
         help='Not Invoiced = not all product have been invoiced',
