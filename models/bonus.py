@@ -22,6 +22,8 @@ class Bonus(models.Model):
     currency_id = fields.Many2one(related='company_id.currency_id')
     amount = fields.Monetary(string='Amount', required=1)
 
+    bonus_state = fields.Selection(related='order_id.bonus_state')
+
     vendor_bill_move_ids = fields.Many2many(
         'account.move', compute='_compute_vendor_bill_move_ids',
         help="Vendor bill but also Vendor bill credit note")
@@ -87,24 +89,57 @@ class Bonus(models.Model):
         order.ensure_one()
 
         # Check if bonuses can be created: the SO must:
+        # - have at least one product type service and tracking
         # - be fully paid
         # - be fully delivered
         # - have its related labor service tasks done (related SOL will be
         #   marked as delivered, so it should be covered by previous point)
+        
+        if not any(line.product_id.type == 'service' and line.product_id.service_tracking == 'task_global_project' for line in order.order_line):
+            order.bonus_state = 'no_services'
+            logger.info("No Services related to this SO %s %s.", order.id, order.date_order)
+            return
+        
         if any([move_state not in ('paid', 'reversed') for move_state in order.invoice_ids.mapped('payment_state')]):
+            order.bonus_state = 'not_paid'
             logger.info("Not all invoices are fully paid or reversed (SO %s %s).", order.id, order.date_order)
             return
+        
         if any(line for line in order.order_line if line.product_uom_qty != line.qty_invoiced):
+            order.bonus_state = 'not_invoiced'
             logger.info("Not all products have been invoiced (SO %s %s).", order.id, order.date_order)
             return
 
+        #si les services avec tracking ne sont pas tous supérieur à zero
+        if any(line.product_id.type == 'service' and
+            line.product_id.service_tracking == 'task_global_project' and
+            line.product_uom_qty == 0
+            for line in order.order_line
+        ):
+            for line in order.order_line:
+                logger.info("Line %s is a service with service_tracking 'task_global_project' and product_uom_qty == 0. Product Type: %s, Service Tracking: %s", line.id, line.product_id.type, line.product_id.service_tracking)
+            order.bonus_state = 'not_all_services_given'
+            logger.info("Not all services have been given (SO %s %s).", order.id, order.date_order)
+            return
+
+        
+        # si les conso et stockables ne sont pas tous livrés on arrête là
         precision = self.env['decimal.precision'].precision_get('Product Unit of Measure')
-        if not order.order_line.filtered(
+        if order.order_line.filtered(
             lambda line:
-            not (line.is_downpayment or line.display_type or (line.product_id.type == 'service' and line.product_id.service_tracking == 'no'))
+            not (line.is_downpayment or line.display_type or line.product_id.type == 'service')
             and float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0
         ):
+            for line in order.order_line:
+                logger.info("Line %s is not a service with service_tracking 'no'. Product Type: %s, Service Tracking: %s", line.id, line.product_id.type, line.product_id.service_tracking)
+            order.bonus_state = 'not_delivered'
             logger.info("Not all deliverable products have been delivered (SO %s %s).", order.id, order.date_order)
+            return
+
+        #si des taches ne sont pas finies
+        if any(line for line in order.order_line if line.task_id.stage_id.name == "Done"):
+            order.bonus_state = "not_finished"
+            logger.info("Not all tasks finished")
             return
 
         involved_employees = self.env['hr.employee']
@@ -133,7 +168,9 @@ class Bonus(models.Model):
             reward_to_distribute = (labor_price_subtotal * labor_order_line.product_id.get_bonus_rate()) / 100
 
             if not task_total_hours or not reward_to_distribute:
-                logger.info("# There might be no timesheet encoded on SO %s, or 0% set on product AND company rate).", order.id)
+                order.bonus_state = 'no_timesheet'
+                logger.info("No timesheet encoded or 0% set on product and company rate")
+                # There might be no timesheet encoded, or 0% set on product AND
                 # company rate
                 continue
 
@@ -154,6 +191,8 @@ class Bonus(models.Model):
                 total_timesheet_unit_amount += timesheet.unit_amount
 
                 if not timesheet.employee_id.contract_id.allow_transport_expenses:
+                    order.bonus_state = 'no_transport_allowed'
+                    logger.info("No transport allowed")
                     continue
 
                 if timesheet.bonuses_ids:

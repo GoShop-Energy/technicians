@@ -12,6 +12,20 @@ class SaleOrder(models.Model):
     bonuses_ids = fields.One2many('gse.bonus', 'order_id')
     bonuses_count = fields.Integer(string='# Bonuses', compute='_compute_bonuses_count', groups="account.group_account_manager")
 
+    bonus_state = fields.Selection([
+        ('not_invoiced', 'Not Invoiced'), 
+        ('not_paid', 'Invoices Not Paid'), 
+        ('not_delivered', 'Products Not Delivered'),
+        ('no_services', 'No Services Related to this SO'),
+        ('not_all_services_given', 'Services not rendered'),
+        ('no_timesheet', 'No Timesheet'),
+        ('no_transport_allowed', 'No Transport'),
+        ('not_finished', 'Taches pas finies' )
+        ], 
+        default='not_invoiced',
+        help='Not Invoiced = not all product have been invoiced',
+        tracking=True)
+
     @api.depends('bonuses_ids')
     def _compute_bonuses_count(self):
         for order in self:

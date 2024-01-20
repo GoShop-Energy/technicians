@@ -13,6 +13,10 @@
                     <field name="bonuses_count" widget="statinfo" string="Transport Expenses"/>
                 </button>
             </xpath>
+            <!-- TO MOVE BEFORE MERGE -->
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <field name="bonus_state"/>
+            </xpath>
         </field>
     </record>
 
@@ -27,4 +31,5 @@
         </field>
     </record>
 
+    
 </odoo>
