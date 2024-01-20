@@ -100,7 +100,10 @@ class Bonus(models.Model):
             logger.info("No Services related to this SO %s %s.", order.id, order.date_order)
             return
         
-        if any([move_state not in ('paid', 'reversed') for move_state in order.invoice_ids.mapped('payment_state')]):
+        if any(
+            move_state not in ('paid', 'reversed') and not (move_state == 'not_paid' and state == 'cancel')
+            for move_state, state in zip(order.invoice_ids.mapped('payment_state'), order.invoice_ids.mapped('state'))
+            ):
             order.bonus_state = 'not_paid'
             logger.info("Not all invoices are fully paid or reversed (SO %s %s).", order.id, order.date_order)
             return
