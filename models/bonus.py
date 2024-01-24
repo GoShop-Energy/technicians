@@ -21,6 +21,7 @@ class Bonus(models.Model):
     company_id = fields.Many2one(related='order_id.company_id')
     currency_id = fields.Many2one(related='company_id.currency_id')
     amount = fields.Monetary(string='Amount', required=1)
+    state = fields.Selection(related='order_id.bonus_state')
 
     vendor_bill_move_ids = fields.Many2many(
         'account.move', compute='_compute_vendor_bill_move_ids',

@@ -13,6 +13,11 @@
                     <field name="bonuses_count" widget="statinfo" string="Transport Expenses"/>
                 </button>
             </xpath>
+            <!-- TODO: Where to put it? -->
+            <xpath expr="//field[@name='payment_term_id']" position="after">
+                <!-- TODO: If we don't want a group here, we don't want one on the action button either, no? -->
+                <field name="bonus_state" attrs="{'invisible': [('bonuses_count', '=', 0)]}"/>
+            </xpath>
         </field>
     </record>
 
