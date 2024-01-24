@@ -133,7 +133,7 @@ class Bonus(models.Model):
             reward_to_distribute = (labor_price_subtotal * labor_order_line.product_id.get_bonus_rate()) / 100
 
             if not task_total_hours or not reward_to_distribute:
-                logger.info("# There might be no timesheet encoded on SO %s, or 0% set on product AND company rate).", order.id)
+                logger.info("# There might be no timesheet encoded on SO %s, or 0%% set on product AND company rate).", order.id)
                 # company rate
                 continue
 
@@ -176,12 +176,11 @@ class Bonus(models.Model):
             assert task_total_hours == total_timesheet_unit_amount, "Total hours spent on task does not match timesheet sum."
 
         # Generate bonus for every transport products
-        if involved_employees:                
+        if involved_employees:
             for transport_order_line in order.order_line.filtered(
-                lambda line: line.product_id.type == 'service' 
-                    and line.product_id.bonus_rate > 0
+                # TODO: Something better that "no task"?
+                lambda line: not line.task_id and line.product_id and line.product_id.get_bonus_rate()
             ):
-    
                 # convert in company currency
                 transport_total = transport_order_line.currency_id._convert(
                     transport_order_line.price_subtotal,
