@@ -178,7 +178,7 @@ class TestBonus(common.TransactionCase):
         task_labor_generator.stage_id = 3  # Done
         task_labor_installation.stage_id = 3  # Done
         so_line_order_task_labor_generator.qty_delivered = so_line_order_task_labor_generator.product_uom_qty
-        so_line_order_task_labor_installation.qty_delivered = so_line_order_task_labor_installation.product_uom_qty
+        so_line_order_task_labor_installation.qty_delivered = 0.5
 
         return sale_order, timesheet1, timesheet2, timesheet3, invoice1
 
