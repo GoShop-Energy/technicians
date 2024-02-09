@@ -120,6 +120,7 @@ class Bonus(models.Model):
             lambda line: (
                 line.product_id.service_tracking != 'no'
                 and line.task_id
+                and line.task_id.stage_id.with_context(lang='en_US').name == "Done"
                 and not line.task_id.disallow_transport_expenses
                 and line.product_id.get_bonus_rate()
             )
