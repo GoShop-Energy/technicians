@@ -21,6 +21,7 @@ class Bonus(models.Model):
     company_id = fields.Many2one(related='order_id.company_id')
     currency_id = fields.Many2one(related='company_id.currency_id')
     amount = fields.Monetary(string='Amount', required=1)
+    state = fields.Selection(related='order_id.bonus_state')
 
     vendor_bill_move_ids = fields.Many2many(
         'account.move', compute='_compute_vendor_bill_move_ids',
@@ -99,13 +100,18 @@ class Bonus(models.Model):
             return
 
         precision = self.env['decimal.precision'].precision_get('Product Unit of Measure')
-        if not order.order_line.filtered(
-            lambda line:
-            not (line.is_downpayment or line.display_type or (line.product_id.type == 'service' and line.product_id.service_tracking == 'no'))
-            and float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0
-        ):
-            logger.info("Not all deliverable products have been delivered (SO %s %s).", order.id, order.date_order)
-            return
+        # keep only consumable + stockable products and services products which generate tasks
+        for line in order.order_line.filtered(lambda l: not (l.is_downpayment or l.display_type)):
+            if line.product_id.type == 'service' and line.product_id.service_tracking != 'no':
+                # As long as something different from 0 has been delivered, it's
+                # ok for the bonus. Eg 30 min will be marked as 0.5/1.
+                if line.qty_delivered == 0:
+                    logger.info("The service line product has 0 marked as delivered (SO %s %s).", order.id, order.date_order)
+                    return
+            else:
+                if float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
+                    logger.info("Not all deliverable products have been delivered (SO %s %s).", order.id, order.date_order)
+                    return
 
         involved_employees = self.env['hr.employee']
 
@@ -114,6 +120,7 @@ class Bonus(models.Model):
             lambda line: (
                 line.product_id.service_tracking != 'no'
                 and line.task_id
+                and line.task_id.stage_id.with_context(lang='en_US').name == "Done"
                 and not line.task_id.disallow_transport_expenses
                 and line.product_id.get_bonus_rate()
             )
@@ -122,6 +129,9 @@ class Bonus(models.Model):
 
             # eg 2.25 for 2h15min
             task_total_hours = labor_task.total_hours_spent
+            if not task_total_hours:
+                logger.info("The task has no timesheet encoded (SO %s %s).", order.id, order.date_order)
+                continue
             # convert in company currency
             labor_price_subtotal = labor_order_line.currency_id._convert(
                 labor_order_line.price_subtotal,
@@ -132,9 +142,8 @@ class Bonus(models.Model):
             # eg 300$ / 10% = 30$
             reward_to_distribute = (labor_price_subtotal * labor_order_line.product_id.get_bonus_rate()) / 100
 
-            if not task_total_hours or not reward_to_distribute:
-                logger.info("# There might be no timesheet encoded on SO %s, or 0% set on product AND company rate).", order.id)
-                # company rate
+            if not reward_to_distribute:
+                logger.info("No bonus rate detected: 0%% set on product AND company rate).")
                 continue
 
             # eg 30$ / 2.25 = 13,33$ for one hour
@@ -154,6 +163,7 @@ class Bonus(models.Model):
                 total_timesheet_unit_amount += timesheet.unit_amount
 
                 if not timesheet.employee_id.contract_id.allow_transport_expenses:
+                    logger.info("This employee isn't allowed to expense transport (set on contract).")
                     continue
 
                 if timesheet.bonuses_ids:
@@ -176,12 +186,11 @@ class Bonus(models.Model):
             assert task_total_hours == total_timesheet_unit_amount, "Total hours spent on task does not match timesheet sum."
 
         # Generate bonus for every transport products
-        if involved_employees:                
+        if involved_employees:
             for transport_order_line in order.order_line.filtered(
-                lambda line: line.product_id.type == 'service' 
-                    and line.product_id.bonus_rate > 0
+                # TODO: Something better that "no task"?
+                lambda line: not line.task_id and line.product_id and line.product_id.get_bonus_rate()
             ):
-    
                 # convert in company currency
                 transport_total = transport_order_line.currency_id._convert(
                     transport_order_line.price_subtotal,
