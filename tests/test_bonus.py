@@ -26,6 +26,19 @@ class TestBonus(common.TransactionCase):
             'allow_billable': True,
         })
         uom_hour = self.env.ref('uom.product_uom_hour')
+        self.regular_product = self.env['product.product'].create({
+            'name': "regular product",
+            'standard_price': 10,
+            'list_price': 10,
+            'bonus_rate': 0,  # no bonus
+            'type': 'service',
+            'invoice_policy': 'order',
+            'uom_id': uom_hour.id,
+            'uom_po_id': uom_hour.id,
+            'default_code': 'SERV-ORDERED',
+            'service_tracking': 'no',  # regular product
+            'taxes_id': None,
+        })
         self.product_order_task_labor_generator = self.env['product.product'].create({
             'name': "labor generator",
             'standard_price': 300,
@@ -115,6 +128,7 @@ class TestBonus(common.TransactionCase):
             'product_id': self.product_order_task_labor_generator.id,
             'product_uom_qty': 1,
             'order_id': sale_order.id,
+            # test taxes
             'tax_id': [(6, 0, self.env['account.tax'].search([('type_tax_use', '=', 'sale')], limit=1).ids)],
         })
         so_line_order_task_labor_installation = SaleOrderLine.create({
@@ -122,10 +136,18 @@ class TestBonus(common.TransactionCase):
             'product_uom_qty': 1,
             'order_id': sale_order.id,
         })
+        # ensure section are not a problem
         SaleOrderLine.create({
             'name': 'This is a section',
             'order_id': sale_order.id,
             'display_type': 'line_section',
+        })
+        # ensure regular product are not a problem and do not get bonus
+        SaleOrderLine.create({
+            'name': 'This is a regular random product',
+            'product_id': self.regular_product.id,
+            'product_uom_qty': 1,
+            'order_id': sale_order.id,
         })
         sale_order.action_confirm()
 
@@ -340,8 +362,8 @@ class TestBonus(common.TransactionCase):
         # Simulate flow
         sale_order, _, _, _, _ = self.simulate_bonus_flow(so_partner=partner)
         bonuses_flow1 = self.env['gse.bonus'].search([]) - existing_bonuses
-        self.assertEqual(sale_order.amount_untaxed, 196892.0)
-        self.assertEqual(sale_order.amount_total, 219042.0)
+        self.assertEqual(sale_order.amount_untaxed, 201814.0)
+        self.assertEqual(sale_order.amount_total, 223964.0)
         self.assertEqual(sale_order.currency_id, currency_RWF)
         self.assertNotEqual(sale_order.currency_id, sale_order.company_id.currency_id)
         self.assertEqual(bonuses_flow1[0].currency_id, sale_order.company_id.currency_id)

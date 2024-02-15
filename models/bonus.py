@@ -188,8 +188,11 @@ class Bonus(models.Model):
         # Generate bonus for every transport products
         if involved_employees:
             for transport_order_line in order.order_line.filtered(
+                # This need to be `bonus_rate` and not `get_bonus_rate()`
+                # because it would fallback on company rate if set and would
+                # grant bonus on any line not linked to a task.
                 # TODO: Something better that "no task"?
-                lambda line: not line.task_id and line.product_id and line.product_id.get_bonus_rate()
+                lambda line: not line.task_id and line.product_id and line.product_id.bonus_rate
             ):
                 # convert in company currency
                 transport_total = transport_order_line.currency_id._convert(
