@@ -143,12 +143,13 @@ class TestBonus(common.TransactionCase):
             'display_type': 'line_section',
         })
         # ensure regular product are not a problem and do not get bonus
-        SaleOrderLine.create({
+        so_line_regular_product = SaleOrderLine.create({
             'name': 'This is a regular random product',
             'product_id': self.regular_product.id,
             'product_uom_qty': 1,
             'order_id': sale_order.id,
         })
+        so_line_regular_product.qty_delivered = 1
         sale_order.action_confirm()
 
         # Generate some timesheet for the service task

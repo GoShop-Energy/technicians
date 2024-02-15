@@ -58,7 +58,7 @@ class SaleOrder(models.Model):
                         elif line.task_id.stage_id.with_context(lang='en_US').name != "Done":
                             state = 'task_not_set_as_done'
                     else:
-                        if float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
+                        if not float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
                             state = 'not_delivered'
 
             order.bonus_state = state or 'something_missing'
