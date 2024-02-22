@@ -108,6 +108,10 @@ class Bonus(models.Model):
                 if line.qty_delivered == 0:
                     logger.info("The service line product has 0 marked as delivered (SO %s %s).", order.id, order.date_order)
                     return
+            elif line.product_id.type == 'service' and line.product_id.service_policy == 'ordered_prepaid':
+                # prepaid service will/could remain at 0 delivered qty but it's
+                # normal and should not block the bonus
+                pass
             else:
                 if not float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
                     logger.info("Not all deliverable products have been delivered (SO %s %s).", order.id, order.date_order)

@@ -39,6 +39,19 @@ class TestBonus(common.TransactionCase):
             'service_tracking': 'no',  # regular product
             'taxes_id': None,
         })
+        self.regular_service_product = self.env['product.product'].create({
+            'name': "regular service product",
+            'standard_price': 10,
+            'list_price': 10,
+            'bonus_rate': 0,  # no bonus
+            'type': 'service',
+            'service_policy': 'ordered_prepaid',
+            'uom_id': uom_hour.id,
+            'uom_po_id': uom_hour.id,
+            'default_code': 'SERV-ORDERED',
+            'service_tracking': 'no',  # regular product
+            'taxes_id': None,
+        })
         self.product_order_task_labor_generator = self.env['product.product'].create({
             'name': "labor generator",
             'standard_price': 300,
@@ -149,6 +162,13 @@ class TestBonus(common.TransactionCase):
             'product_uom_qty': 1,
             'order_id': sale_order.id,
         })
+        so_line_regular_service_product = SaleOrderLine.create({
+            'name': 'This is a regular random service product',
+            'product_id': self.regular_service_product.id,
+            'product_uom_qty': 1,
+            'order_id': sale_order.id,
+        })
+        self.assertFalse(so_line_regular_service_product.qty_delivered, "it should remain 0, it's the purpose of the test and this product")
         so_line_regular_product.qty_delivered = 1
         sale_order.action_confirm()
 
@@ -363,8 +383,8 @@ class TestBonus(common.TransactionCase):
         # Simulate flow
         sale_order, _, _, _, _ = self.simulate_bonus_flow(so_partner=partner)
         bonuses_flow1 = self.env['gse.bonus'].search([]) - existing_bonuses
-        self.assertEqual(sale_order.amount_untaxed, 201814.0)
-        self.assertEqual(sale_order.amount_total, 223964.0)
+        self.assertEqual(sale_order.amount_untaxed, 206736.0)
+        self.assertEqual(sale_order.amount_total, 228886.0)
         self.assertEqual(sale_order.currency_id, currency_RWF)
         self.assertNotEqual(sale_order.currency_id, sale_order.company_id.currency_id)
         self.assertEqual(bonuses_flow1[0].currency_id, sale_order.company_id.currency_id)
