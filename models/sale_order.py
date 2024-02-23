@@ -57,8 +57,12 @@ class SaleOrder(models.Model):
                             state = 'not_all_services_given'
                         elif line.task_id.stage_id.with_context(lang='en_US').name != "Done":
                             state = 'task_not_set_as_done'
+                    elif line.product_id.type == 'service' and line.product_id.service_policy == 'ordered_prepaid':
+                        # prepaid service will/could remain at 0 delivered qty but it's
+                        # normal and should not block the bonus
+                        pass
                     else:
-                        if float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
+                        if not float_compare(line.qty_delivered, line.product_uom_qty, precision_digits=precision) >= 0:
                             state = 'not_delivered'
 
             order.bonus_state = state or 'something_missing'
